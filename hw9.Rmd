@@ -1,0 +1,97 @@
+---
+title: "DATA 607 - Coding Assignment 9"
+output: html_notebook
+---
+
+### Introduction
+
+In this report, the Books API from The New York Times is used in order to import the best sellers and relevant information pertaining to each of the best sellers. The response is then encoded into a UTF-8 text format. The raw json data is then converted into a dataframe for future analysis.
+
+### Importing Raw Data Through API
+```{r import libraries, echo = FALSE}
+library(httr)
+library(jsonlite)
+library(tidyverse)
+library(DT)
+```
+The path is defined, which is also known as the HTTP request. This is the base url that will be used to pull data from the API.
+
+```{r path}
+path <- "https://api.nytimes.com/svc/books/v3/lists.json"
+```
+
+```{r api key, echo = FALSE}
+api_key <- '8GckjV619ycHtNyt0W0CH43kvaAVheDw'
+```
+
+The `GET` request below lists several parameters that were used inside of the query.
+
+- `list` was set to `hardcover-fiction`. This grabs all of the `hardcover-fiction` books for the week-ending date specified in `bestsellers-date`.
+- `published-date` specifies the date that the best sellers list was published on NYTimes.com
+- `offset` sets the starting point of the results set. By default, it is set to 0.
+- `api-key` is the API key that was generated through setting up a developer.nytimes.com account.
+
+```{r get request}
+res <- GET(path,
+          query = list(list = 'hardcover-fiction',
+                       'bestsellers-date' = "2016-03-05",
+                       'published-date' = "2016-03-20",
+                       offset = 0,
+                       'api-key' = api_key))
+```
+
+### Transforming Raw Imported Data into Dataframe
+
+The `content` function is used in order to transform the contents of the request stored in `res` as a character vector with UTF-8 encoding. The resulting character vector is then stored in the `response` variable. The `fromJSON` function is them used on the `response` to convert the JSON data to an R object. Then the `data.frame` function is used to convert this R object into a dataframe.
+
+```{r creating dataframe}
+response <- content(res, as = "text", encoding = "UTF-8")
+
+book_df <- fromJSON(response, flatten = TRUE) %>%
+  data.frame()
+
+datatable(
+  book_df[1:5,], extensions = 'FixedColumns',
+  options = list(
+  dom = 't',
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+The output above shows that the `results.isbns`, `results.book_details`, and `results.reviews` columns contain nested dataframes. In order to extract the nested dataframes, the `unnest` function is used below.
+
+```{r unnesting dataframe}
+
+unnested_book_df <- unnest(book_df, cols = c(results.isbns, results.book_details, results.reviews))
+
+datatable(
+  unnested_book_df[1:5,], extensions = 'FixedColumns',
+  options = list(
+  dom = 't',
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+The `unnested_book_df` dataframe shows multiple entries for the same novel, when looking at the `title` column. Therefore, we want to get rid of these duplicate entries. This is done using the `distinct` function below.
+
+```{r using distinct function}
+
+removed_duplicates_df <- unnested_book_df %>%
+  distinct(title, .keep_all = TRUE)
+
+datatable(
+  removed_duplicates_df, extensions = 'FixedColumns',
+  options = list(
+  dom = 't',
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+### Conclusion
+This report shows how to import data from a New York Times API. The raw data is highly unstructured and must be transformed in order to analyze and draw conclusions from. In the future, this data could be analyzed to determine the average number of weeks a book stays on the best seller list by genre.
